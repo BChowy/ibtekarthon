@@ -1,28 +1,38 @@
-# landslide_app.py (simplified)
 import streamlit as st
 import joblib
 import numpy as np
 
-# Simple model (replace with your trained model)
-class HackathonModel:
-    def predict(self, X):
-        return np.where(
-            (X[:,0] > 25) &  # Slope
-            (X[:,1] > 150) &  # Rainfall
-            (X[:,2] > 0.6),  # Soil moisture
-            1, 0
-        )
+# Load your model
+@st.cache_resource
+def load_model():
+    return joblib.load('best_model.pkl')  # Replace with your model
 
-# Load model
-model = HackathonModel()
+model = load_model()
 
-# Streamlit UI
-st.title("🌋 Landslide Risk Predictor")
-slope = st.slider("Slope", 0, 45, 25)
-rainfall = st.slider("Rainfall", 0, 300, 150)
-soil_moisture = st.slider("Soil Moisture", 0.0, 1.0, 0.6)
+# Title
+st.title("🌋 Real-Time Landslide Risk Prediction")
+st.markdown("Predict landslide probability using terrain and weather factors")
 
-if st.button("Predict"):
-    input_data = [[slope, rainfall, soil_moisture]]
-    prediction = model.predict(input_data)
-    st.write("Landslide Risk: ", "High 🔴" if prediction[0] else "Low 🟢")
+# Input widgets
+slope = st.slider("Slope Angle (degrees)", 0, 45, 25)
+rainfall = st.slider("7-Day Rainfall (mm)", 0, 300, 150)
+soil_moisture = st.slider("Soil Moisture Index", 0.0, 1.0, 0.6)
+human_activity = st.selectbox("Human Activity Nearby", ["No", "Yes"])
+human_activity_bin = 1 if human_activity == "Yes" else 0
+
+# Prediction logic
+if st.button("Predict Risk"):
+    # Format input as a 2D numpy array
+    input_array = np.array([[slope, rainfall, soil_moisture, human_activity_bin]])
+    
+    # Predict
+    try:
+        prediction = model.predict(input_array)[0]
+        probability = model.predict_proba(input_array)[0][1]
+        
+        # Display results
+        st.success(f"Predicted Risk: {probability*100:.1f}%")
+        st.progress(probability)
+        
+    except Exception as e:
+        st.error(f"Error: {str(e)}")
