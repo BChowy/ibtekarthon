@@ -22,29 +22,33 @@ with col2:
 
 human_activity_bin = 1 if human_activity == "Yes" else 0
 
+# Inside your Streamlit prediction button logic:
 if st.button("Predict Risk"):
     input_data = np.array([[slope, rainfall, soil, human_activity_bin]])
     
     try:
-        proba = model.predict_proba(input_data)[0][1]
-        risk_percent = proba * 100
+        # Get prediction and confidence
+        prediction = model.predict(input_data)[0]  # 0 or 1
+        proba = model.predict_proba(input_data)[0][prediction]  # Confidence for the predicted class
+        confidence = proba * 100
         
-        if risk_percent > 70:
-            color = "#ff0000"
-            emoji = "🚨 HIGH RISK!"
-        elif risk_percent > 50:
-            color = "#ffd700"
-            emoji = "⚠️ Moderate Risk"
+        # Determine message
+        if prediction == 1:
+            risk_message = f"🚨 Landslide Predicted! (Confidence: {confidence:.1f}%)"
+            # color = "#ff0000"
         else:
-            color = "#00ff00"
-            emoji = "✅ Low Risk"
+            risk_message = f"✅ Safe Zone (Confidence: {confidence:.1f}%)"
+            # color = "#00ff00"
         
+        # Display
         st.markdown(f"""
         <div style='background-color:{color}; padding:20px; border-radius:10px;'>
-            <h3 style='text-align:center;'>{emoji}</h3>
-            <p style='text-align:center; font-size:24px;'>{risk_percent:.1f}%</p>
+            <h3 style='text-align:center;'>{risk_message}</h3>
         </div>
         """, unsafe_allow_html=True)
         
+        # Progress bar for visual emphasis
+        st.progress(int(confidence))
+        
     except Exception as e:
-        st.error(f"Prediction failed: {str(e)}")
+        st.error(f"Error: {str(e)}")
