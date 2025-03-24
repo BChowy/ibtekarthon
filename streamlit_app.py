@@ -1,38 +1,50 @@
+# streamlit_app.py
 import streamlit as st
 import joblib
 import numpy as np
 
-# Load your model
 @st.cache_resource
 def load_model():
-    return joblib.load('best_model.pkl')  # Replace with your model
+    return joblib.load("landslide_model.pkl")
 
 model = load_model()
 
-# Title
-st.title("🌋 Real-Time Landslide Risk Prediction")
-st.markdown("Predict landslide probability using terrain and weather factors")
+st.title("🌋 Landslide Risk Predictor")
+st.markdown("Predict risk using terrain/weather factors")
 
-# Input widgets
-slope = st.slider("Slope Angle (degrees)", 0, 45, 25)
-rainfall = st.slider("7-Day Rainfall (mm)", 0, 300, 150)
-soil_moisture = st.slider("Soil Moisture Index", 0.0, 1.0, 0.6)
-human_activity = st.selectbox("Human Activity Nearby", ["No", "Yes"])
+col1, col2 = st.columns(2)
+with col1:
+    slope = st.slider("Slope Angle (°)", 0, 45, 25)
+    rainfall = st.slider("7-Day Rainfall (mm)", 0, 300, 150)
+with col2:
+    soil = st.slider("Soil Moisture", 0.0, 1.0, 0.6)
+    human_activity = st.selectbox("Human Activity Nearby", ["No", "Yes"])
+
 human_activity_bin = 1 if human_activity == "Yes" else 0
 
-# Prediction logic
 if st.button("Predict Risk"):
-    # Format input as a 2D numpy array
-    input_array = np.array([[slope, rainfall, soil_moisture, human_activity_bin]])
+    input_data = np.array([[slope, rainfall, soil, human_activity_bin]])
     
-    # Predict
     try:
-        prediction = model.predict(input_array)[0]
-        probability = model.predict_proba(input_array)[0][1]
+        proba = model.predict_proba(input_data)[0][1]
+        risk_percent = proba * 100
         
-        # Display results
-        st.success(f"Predicted Risk: {probability*100:.1f}%")
-        st.progress(probability)
+        if risk_percent > 70:
+            color = "#ff0000"
+            emoji = "🚨 HIGH RISK!"
+        elif risk_percent > 50:
+            color = "#ffd700"
+            emoji = "⚠️ Moderate Risk"
+        else:
+            color = "#00ff00"
+            emoji = "✅ Low Risk"
+        
+        st.markdown(f"""
+        <div style='background-color:{color}; padding:20px; border-radius:10px;'>
+            <h3 style='text-align:center;'>{emoji}</h3>
+            <p style='text-align:center; font-size:24px;'>{risk_percent:.1f}%</p>
+        </div>
+        """, unsafe_allow_html=True)
         
     except Exception as e:
-        st.error(f"Error: {str(e)}")
+        st.error(f"Prediction failed: {str(e)}")
