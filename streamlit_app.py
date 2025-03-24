@@ -35,10 +35,10 @@ if st.button("Predict Risk"):
         # Determine message
         if prediction == 1:
             risk_message = f"🚨 Landslide Predicted! (Confidence: {confidence:.1f}%)"
-            # color = "#ff0000"
+            color = "#000000"
         else:
             risk_message = f"✅ Safe Zone (Confidence: {confidence:.1f}%)"
-            # color = "#00ff00"
+            color = "#000000"
         
         # Display
         st.markdown(f"""
