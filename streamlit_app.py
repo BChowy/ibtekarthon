@@ -1,73 +1,24 @@
-# streamlit_app.py
-# import streamlit as st
-# import joblib
-# import numpy as np
-
-# @st.cache_resource
-# def load_model():
-#     return joblib.load("landslide_model.pkl")
-
-# model = load_model()
-
-# st.title("🌋 Landslide Risk Predictor")
-# st.markdown("Predict risk using terrain/weather factors")
-
-# col1, col2 = st.columns(2)
-# with col1:
-#     slope = st.slider("Slope Angle (°)", 0, 45, 25)
-#     rainfall = st.slider("7-Day Rainfall (mm)", 0, 300, 150)
-# with col2:
-#     soil = st.slider("Soil Moisture", 0.0, 1.0, 0.6)
-#     human_activity = st.selectbox("Human Activity Nearby", ["No", "Yes"])
-
-# human_activity_bin = 1 if human_activity == "Yes" else 0
-
-# # Inside your Streamlit prediction button logic:
-# if st.button("Predict Risk"):
-#     input_data = np.array([[slope, rainfall, soil, human_activity_bin]])
-    
-#     try:
-#         # Get prediction and confidence
-#         prediction = model.predict(input_data)[0]  # 0 or 1
-#         proba = model.predict_proba(input_data)[0][prediction]  # Confidence for the predicted class
-#         confidence = proba * 100
-        
-#         # Determine message
-#         if prediction == 1:
-#             risk_message = f"🚨 Landslide Predicted! (Confidence: {confidence:.1f}%)"
-#             color = "#000000"
-#         else:
-#             risk_message = f"✅ Safe Zone (Confidence: {confidence:.1f}%)"
-#             color = "#000000"
-        
-#         # Display
-#         st.markdown(f"""
-#         <div style='background-color:{color}; padding:20px; border-radius:10px;'>
-#             <h3 style='text-align:center;'>{risk_message}</h3>
-#         </div>
-#         """, unsafe_allow_html=True)
-        
-#         # Progress bar for visual emphasis
-#         st.progress(int(confidence))
-        
-#     except Exception as e:
-#         st.error(f"Error: {str(e)}")
-
 import streamlit as st
 import joblib
 import numpy as np
+import pandas as pd
+import xgboost as xgb
+import matplotlib.pyplot as plt
+import plotly.express as px
+import seaborn as sns  # Add this import
+
 
 # Load model
 model = joblib.load("landslide_model.pkl")
 
 # Streamlit app
-st.title("Landslide Risk Prediction")
+st.title("🌋 Landslide Risk Prediction")
     
 # User input
 slope = st.slider("Slope (degrees)", 0, 90, 30)
 rainfall = st.slider("Rainfall (mm)", 0, 500, 100)
 soil_moisture = st.slider("Soil Moisture (%)", 10, 100, 50)
-human_activity = st.radio("Human Activity Level", [0, 1, 2], format_func=lambda x: ["Low", "Medium", "High"][x])
+human_activity = st.selectbox("Human Activity Level", [0, 1, 2], format_func=lambda x: ["Low", "Medium", "High"][x])
 
 # Create feature array
 features = np.array([[slope, rainfall, soil_moisture, human_activity, slope * rainfall]])
@@ -76,7 +27,58 @@ features = np.array([[slope, rainfall, soil_moisture, human_activity, slope * ra
 prediction = model.predict(features)[0]
 confidence = model.predict_proba(features)[0]
 
-# Output
+# Output with emoji based on risk level
 risk_levels = ["Low", "Medium", "High"]
-st.subheader(f"Landslide Risk: {risk_levels[int(prediction)]}")
+risk_emojis = ["✅", "⚠️", "🚨"]
+st.subheader(f"Landslide Risk: {risk_levels[int(prediction)]} {risk_emojis[int(prediction)]}")
 st.write(f"Confidence: {max(confidence) * 100:.2f}%")
+
+booster = model.get_booster()
+importance = booster.get_score(importance_type="weight")
+
+# Sort features by importance
+sorted_importance = dict(sorted(importance.items(), key=lambda item: item[1]))
+
+# Set style
+plt.style.use('ggplot')  # Modern seaborn style name
+plt.rcParams['font.family'] = 'DejaVu Sans'
+
+# Create figure
+fig, ax = plt.subplots(figsize=(10, 8))
+colors = plt.cm.viridis_r(np.linspace(0.2, 0.8, len(sorted_importance)))
+
+# Plot horizontal bars
+bars = ax.barh(list(sorted_importance.keys()), 
+               list(sorted_importance.values()), 
+               color=colors,
+               edgecolor='black',
+               linewidth=0.5,
+               alpha=0.8)
+
+# Add value labels
+for bar in bars:
+    width = bar.get_width()
+    ax.text(width + 0.005*max(sorted_importance.values()),
+            bar.get_y() + bar.get_height()/2,
+            f'{width:.2f}',
+            va='center',
+            ha='left',
+            fontsize=9)
+
+# Styling
+ax.set_xlabel("Feature Importance Score", fontsize=12, labelpad=10)
+ax.set_title("Landslide Prediction Feature Importance\n", 
+             fontsize=16, fontweight='bold', pad=20)
+ax.xaxis.set_tick_params(labelsize=10)
+ax.yaxis.set_tick_params(labelsize=10)
+ax.spines[['top', 'right']].set_visible(False)
+ax.grid(axis='x', linestyle='--', alpha=0.7)
+
+# Add color bar for visual scale
+sm = plt.cm.ScalarMappable(cmap='viridis_r', 
+                         norm=plt.Normalize(vmin=0, vmax=max(sorted_importance.values())))
+cbar = plt.colorbar(sm, ax=ax, orientation='vertical', shrink=0.5)
+cbar.set_label('Importance Magnitude', rotation=270, labelpad=15)
+
+plt.tight_layout()
+st.pyplot(fig)
