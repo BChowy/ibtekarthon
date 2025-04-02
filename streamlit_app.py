@@ -62,7 +62,7 @@ model = joblib.load("landslide_model.pkl")
 
 # Streamlit app
 st.title("Landslide Risk Prediction")
-
+    
 # User input
 slope = st.slider("Slope (degrees)", 0, 90, 30)
 rainfall = st.slider("Rainfall (mm)", 0, 500, 100)
