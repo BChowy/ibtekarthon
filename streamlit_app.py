@@ -1,93 +1,120 @@
 import streamlit as st
-import joblib
-import numpy as np
+import pandas as pd
+import plotly.express as px
 
+# Custom red theme configuration
+RED_PALETTE = px.colors.sequential.Reds
+DARK_RED = "#8B0000"
+ACCENT_RED = "#FF4C4C"
+BG_COLOR = "#0e1118"  # Dark background from map view
 
-# Load model
-model = joblib.load("landslide_model.pkl")
+st.set_page_config(page_title="Landslide Dashboard", layout="wide")
+st.title("🌍 Landslide Events Dashboard")
 
-# Streamlit app
-st.title("🌋 Landslide Risk Prediction")
+# Apply dark theme from map view
+st.markdown(f"""
+<style>
+    .main {{
+        background-color: {BG_COLOR};
+        color: white;
+    }}
+    [data-testid="stMetric"] {{
+        background-color: #1a1a1a;
+        border-radius: 5px;
+        padding: 10px;
+    }}
+    [data-testid="stMetricLabel"] {{
+        color: {ACCENT_RED} !important;
+    }}
+    [data-testid="stMetricValue"] {{
+        color: white !important;
+    }}
+</style>
+""", unsafe_allow_html=True)
+
+# Load and prepare data (keep your existing code)
+df = pd.read_csv("data/cleaned_landslide_data2.csv")
+df['event_date'] = pd.to_datetime(df['event_date'])
+df['year'] = df['event_date'].dt.year
+df = df.assign(
+    latitude=pd.to_numeric(df['latitude'], errors='coerce'),
+    longitude=pd.to_numeric(df['longitude'], errors='coerce'),
+    fatality_count=df['fatality_count'].fillna(0).astype(int),
+    injury_count=df['injury_count'].fillna(0).astype(int)
+).dropna(subset=['latitude', 'longitude'])
+
+filtered_df = df[
+    (df["landslide_category"]).isin(["landslide", "mudslide", "rock_fall"]) &
+    (df["landslide_size"]).isin(["small", "medium", "large"]) &
+    (df["landslide_trigger"] != "unknown")
+]
+
+# Metrics - Simplified and color-matched
+col1, col2, col3 = st.columns([2, 2, 1])
+with col3:
+    st.markdown("### Impact Summary")
+    st.metric("Injuries", f"{filtered_df['injury_count'].sum():,}")
+    st.metric("Fatalities", f"{filtered_df['fatality_count'].sum():,}")
     
-# User input
-slope = st.slider("Slope (degrees)", 0, 90, 30)
-rainfall = st.slider("Rainfall (mm)", 0, 500, 100)
-soil_moisture = st.slider("Soil Moisture (%)", 10, 100, 50)
-human_activity = st.selectbox("Human Activity Level", [0, 1, 2], format_func=lambda x: ["Low", "Medium", "High"][x])
+    if st.button("Predictive Analysis", type="primary"):
+        st.session_state.go_to_prediction = True
 
-# Create feature array
-features = np.array([[slope, rainfall, soil_moisture, human_activity, slope * rainfall]])
+# Charts with map view's red theme
+chart_config = {
+    "color_discrete_sequence": RED_PALETTE,
+    "template": "plotly_dark",
+    "labels": {
+        "landslide_trigger": "Trigger",
+        "landslide_category": "Category",
+        "landslide_size": "Size"
+    }
+}
 
-# Predict
-prediction = model.predict(features)[0]
-confidence = model.predict_proba(features)[0]
+with col1:
+    fig_trigger = px.histogram(
+        filtered_df, 
+        x="landslide_trigger", 
+        title="<b>Trigger Distribution</b>",
+        **chart_config
+    ).update_layout(
+        plot_bgcolor=BG_COLOR,
+        paper_bgcolor=BG_COLOR,
+        font_color="white"
+    )
+    st.plotly_chart(fig_trigger, use_container_width=True)
 
-# Output with emoji based on risk level
-risk_levels = ["Low", "Medium", "High"]
-risk_emojis = ["✅", "⚠️", "🚨"]
-st.subheader(f"Landslide Risk: {risk_levels[int(prediction)]} {risk_emojis[int(prediction)]}")
-st.write(f"Confidence: {max(confidence) * 100:.2f}%")
+with col2:
+    fig_category = px.histogram(
+        filtered_df,
+        x="landslide_category",
+        title="<b>Category Breakdown</b>",
+        **chart_config
+    ).update_layout(
+        plot_bgcolor=BG_COLOR,
+        paper_bgcolor=BG_COLOR,
+        font_color="white"
+    )
+    st.plotly_chart(fig_category, use_container_width=True)
 
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-from matplotlib.colors import Normalize
+# Size vs Trigger chart matching map style
+st.markdown("### Event Scale by Trigger")
+fig_size_trigger = px.histogram(
+    filtered_df,
+    x="landslide_size",
+    color="landslide_trigger",
+    barmode="group",
+    color_discrete_sequence=RED_PALETTE,
+    template="plotly_dark"
+).update_layout(
+    plot_bgcolor=BG_COLOR,
+    paper_bgcolor=BG_COLOR,
+    font_color="white",
+    legend=dict(
+        bgcolor="#1a1a1a",
+        font=dict(color="white")
+))
+st.plotly_chart(fig_size_trigger, use_container_width=True)
 
-booster = model.get_booster()
-importance = booster.get_score(importance_type="weight")
-features = list(importance.keys())
-scores = list(importance.values())
-
-n = len(features)
-theta = np.linspace(0, 2 * np.pi, n, endpoint=False)
-width = 2 * np.pi / n
-
-# Create different red shades using Reds colormap
-reds = cm.get_cmap('Reds')
-colors = reds(np.linspace(0.3, 0.9, n))
-
-# Set dark background and white foreground
-plt.style.use('dark_background')
-fig = plt.figure(facecolor="#0e1118")
-ax = fig.add_subplot(111, projection='polar', facecolor="#0e1118")
-
-# Create bars with different red shades
-bars = ax.bar(theta, scores, width=width, color=colors, 
-             align='edge', edgecolor='white', linewidth=0.8)
-
-# Adjust polar plot settings
-ax.set_theta_offset(np.pi/2)
-ax.set_theta_direction(-1)
-ax.set_ylim(0, max(scores)*1.1)
-
-# Customize labels and ticks (white color)
-ax.set_xticks(theta + width/2)
-ax.set_xticklabels(features, fontsize=8, color="white")
-ax.tick_params(axis='y', colors='white')
-ax.yaxis.grid(True, color="white", linestyle='--', alpha=0.4)
-
-# Set title with white color
-ax.set_title("Feature Importance in Landslide Prediction", 
-            pad=20, color="white", fontweight='bold')
-
-# Rotate labels and set white color
-for label, angle in zip(ax.get_xticklabels(), np.degrees(theta + width/2)):
-    if angle > 90:
-        angle -= 180
-    elif angle < -90:
-        angle += 180
-    label.set_rotation(angle)
-    label.set_color("white")
-    label.set_horizontalalignment('center' if -90 <= angle <= 90 else 'right')
-
-# Create colorbar with white text
-sm = plt.cm.ScalarMappable(cmap=reds, norm=Normalize(vmin=0, vmax=max(scores)))
-sm.set_array([])
-cbar = plt.colorbar(sm, ax=ax, pad=0.1)
-cbar.set_label('Importance Score', rotation=270, labelpad=15, color="white")
-cbar.ax.yaxis.set_tick_params(color="white")
-plt.setp(plt.getp(cbar.ax.axes, 'yticklabels'), color="white")
-
-# Set spine color (for radial grid)
-ax.spines['polar'].set_color('white')
-
-st.pyplot(fig)
+# Navigation handling
+if st.session_state.get("go_to_prediction", False):
+    st.switch_page("pages/1_Prediction.py")
