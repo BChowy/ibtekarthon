@@ -33,7 +33,7 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # Load and prepare data (keep your existing code)
-df = pd.read_csv("data/cleaned_landslide_data2.csv")
+df = pd.read_csv("data/cleaned_landslide_data.csv")
 df['event_date'] = pd.to_datetime(df['event_date'])
 df['year'] = df['event_date'].dt.year
 df = df.assign(
