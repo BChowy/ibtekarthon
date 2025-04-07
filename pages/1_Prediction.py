@@ -6,7 +6,7 @@ import numpy as np
 model = joblib.load("data/landslide_model.pkl")
 
 # Streamlit app
-st.set_page_config(page_title="Landslide Dashboard", layout="centered")
+st.set_page_config(page_title="Landslide Dashboard", layout="centered", initial_sidebar_state="collapsed")
 st.title("🌋 Landslide Risk Prediction")
     
 # User input
